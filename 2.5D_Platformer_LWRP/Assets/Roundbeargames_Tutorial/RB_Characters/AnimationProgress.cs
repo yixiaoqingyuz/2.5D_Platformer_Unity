@@ -6,94 +6,291 @@ namespace Roundbeargames
 {
     public class AnimationProgress : MonoBehaviour
     {
-        public List<StateData> CurrentRunningAbilities = new List<StateData>();
+        public Dictionary<StateData, int> CurrentRunningAbilities =
+            new Dictionary<StateData, int>();
 
         public bool CameraShaken;
         public List<PoolObjectType> SpawnedObjList = new List<PoolObjectType>();
-        public bool AttackTriggered;
         public bool RagdollTriggered;
-        public float MaxPressTime;
+        public MoveForward LatestMoveForward;
+
+        [Header("Attack Button")]
+        public bool AttackTriggered;
+        public bool AttackButtonIsReset;
 
         [Header("GroundMovement")]
         public bool disallowEarlyTurn;
         public bool LockDirectionNextState;
-        public bool IsLanding;
+        public bool IsIgnoreCharacterTime;
+        private List<GameObject> SpheresList;
+        private float DirBlock;
 
         [Header("Colliding Objects")]
         public GameObject Ground;
-        public GameObject BlockingObj;
+        public Dictionary<TriggerDetector, List<Collider>> CollidingWeapons =
+            new Dictionary<TriggerDetector, List<Collider>>();
+        public Dictionary<TriggerDetector, List<Collider>> CollidingBodyParts =
+            new Dictionary<TriggerDetector, List<Collider>>();
+        public Dictionary<GameObject, GameObject> BlockingObjs =
+            new Dictionary<GameObject, GameObject>();
 
         [Header("AirControl")]
         public bool Jumped;
         public float AirMomentum;
         public bool CancelPull;
+        public Vector3 MaxFallVelocity;
+        public bool CanWallJump;
+        public bool CheckWallBlock;
 
         [Header("UpdateBoxCollider")]
-        public bool UpdatingBoxCollider;
         public bool UpdatingSpheres;
         public Vector3 TargetSize;
         public float Size_Speed;
         public Vector3 TargetCenter;
         public float Center_Speed;
 
+        [Header("Damage Info")]
+        public Attack Attack;
+        public CharacterControl Attacker;
+        public TriggerDetector DamagedTrigger;
+        public GameObject AttackingPart;
+
+        [Header("Transition")]
+        public bool LockTransition;
+
+        [Header("Weapon")]
+        public MeleeWeapon HoldingWeapon;
+
         private CharacterControl control;
-        private float PressTime;
 
         private void Awake()
         {
             control = GetComponent<CharacterControl>();
-            PressTime = 0f;
         }
 
         private void Update()
         {
             if (control.Attack)
             {
-                PressTime += Time.deltaTime;
+                if (AttackButtonIsReset)
+                {
+                    AttackTriggered = true;
+                    AttackButtonIsReset = false;
+                }
             }
             else
             {
-                PressTime = 0f;
+                AttackButtonIsReset = true;
+                AttackTriggered = false;
             }
 
-            if (PressTime == 0f)
+            if (IsRunning(typeof(LockTransition)))
             {
-                AttackTriggered = false;
-            }
-            else if(PressTime > MaxPressTime)
-            {
-                AttackTriggered = false;
+                if (control.animationProgress.LockTransition)
+                {
+                    control.SkinnedMeshAnimator.
+                        SetBool(HashManager.Instance.DicMainParams[TransitionParameter.LockTransition],
+                        true);
+                }
+                else
+                {
+                    control.SkinnedMeshAnimator.
+                        SetBool(HashManager.Instance.DicMainParams[TransitionParameter.LockTransition],
+                        false);
+                }
             }
             else
             {
-                AttackTriggered = true;
+                control.SkinnedMeshAnimator.
+                    SetBool(HashManager.Instance.DicMainParams[TransitionParameter.LockTransition],
+                    false);
             }
         }
 
-        //private void LateUpdate()
-        //{
-        //    FrameUpdated = false;
-        //}
-
-        public bool IsRunning(System.Type type, StateData self)
+        private void FixedUpdate()
         {
-            for (int i = 0; i < CurrentRunningAbilities.Count; i++)
+            if (IsRunning(typeof(MoveForward)))
             {
-                if (type == CurrentRunningAbilities[i].GetType())
+                CheckBlockingObjs();
+            }
+            else
+            {
+                if (BlockingObjs.Count != 0)
                 {
-                    if (CurrentRunningAbilities[i] == self)
+                    BlockingObjs.Clear();
+                }
+            }
+        }
+
+        void CheckBlockingObjs()
+        {
+            if (LatestMoveForward.Speed > 0)
+            {
+                SpheresList = control.collisionSpheres.FrontSpheres;
+                DirBlock = 0.3f;
+
+                foreach(GameObject s in control.collisionSpheres.BackSpheres)
+                {
+                    if (BlockingObjs.ContainsKey(s))
                     {
-                        return false;
+                        BlockingObjs.Remove(s);
                     }
-                    else
+                }
+            }
+            else
+            {
+                SpheresList = control.collisionSpheres.BackSpheres;
+                DirBlock = -0.3f;
+
+                foreach (GameObject s in control.collisionSpheres.FrontSpheres)
+                {
+                    if (BlockingObjs.ContainsKey(s))
                     {
-                        //Debug.Log(type.ToString() + " is already running");
-                        return true;
+                        BlockingObjs.Remove(s);
                     }
                 }
             }
 
+            foreach (GameObject o in SpheresList)
+            {
+                Debug.DrawRay(o.transform.position, control.transform.forward * DirBlock, Color.yellow);
+                RaycastHit hit;
+                if (Physics.Raycast(o.transform.position, control.transform.forward * DirBlock,
+                    out hit,
+                    LatestMoveForward.BlockDistance))
+                {
+                    if (!IsBodyPart(hit.collider) &&
+                        !IsIgnoringCharacter(hit.collider) &&
+                        !Ledge.IsLedge(hit.collider.gameObject) &&
+                        !Ledge.IsLedgeChecker(hit.collider.gameObject) &&
+                        !MeleeWeapon.IsWeapon(hit.collider.gameObject) &&
+                        !TrapSpikes.IsTrap(hit.collider.gameObject))
+                    {
+                        if (BlockingObjs.ContainsKey(o))
+                        {
+                            BlockingObjs[o] = hit.collider.transform.root.gameObject;
+                        }
+                        else
+                        {
+                            BlockingObjs.Add(o, hit.collider.transform.root.gameObject);
+                        }
+                    }
+                    else
+                    {
+                        if (BlockingObjs.ContainsKey(o))
+                        {
+                            BlockingObjs.Remove(o);
+                        }
+                    }
+                }
+                else
+                {
+                    if (BlockingObjs.ContainsKey(o))
+                    {
+                        BlockingObjs.Remove(o);
+                    }
+                }
+            }
+        }
+
+        bool IsIgnoringCharacter(Collider col)
+        {
+            if (!IsIgnoreCharacterTime)
+            {
+                return false;
+            }
+            else
+            {
+                CharacterControl blockingChar = CharacterManager.Instance.GetCharacter(col.transform.root.gameObject);
+
+                if (blockingChar == null)
+                {
+                    return false;
+                }
+
+                if (blockingChar == control)
+                {
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+        }
+
+        bool IsBodyPart(Collider col)
+        {
+            if (col.transform.root.gameObject == control.gameObject)
+            {
+                return true;
+            }
+
+            CharacterControl target = CharacterManager.Instance.GetCharacter(col.transform.root.gameObject);
+
+            if (target == null)
+            {
+                return false;
+            }
+
+            if (target.damageDetector.IsDead())
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public bool IsRunning(System.Type type)
+        {
+            foreach(KeyValuePair<StateData, int> data in CurrentRunningAbilities)
+            {
+                if (data.Key.GetType() == type)
+                {
+                    return true;
+                }
+            }
+
             return false;
+        }
+
+        public bool RightSideIsBlocked()
+        {
+            foreach(KeyValuePair<GameObject, GameObject> data in BlockingObjs)
+            {
+                if ((data.Value.transform.position - control.transform.position).z > 0f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool LeftSideIsBlocked()
+        {
+            foreach (KeyValuePair<GameObject, GameObject> data in BlockingObjs)
+            {
+                if ((data.Value.transform.position - control.transform.position).z < 0f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public MeleeWeapon GetTouchingWeapon()
+        {
+            foreach(KeyValuePair<TriggerDetector, List<Collider>> data in CollidingWeapons)
+            {
+                MeleeWeapon w = data.Value[0].gameObject.GetComponent<MeleeWeapon>();
+                return w;
+            }
+
+            return null;
         }
     }
 }

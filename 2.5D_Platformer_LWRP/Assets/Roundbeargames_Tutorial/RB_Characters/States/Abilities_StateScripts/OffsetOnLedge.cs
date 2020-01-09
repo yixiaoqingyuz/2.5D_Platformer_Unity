@@ -9,17 +9,17 @@ namespace Roundbeargames
     {
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //CharacterControl control = characterState.GetCharacterControl(animator);
-            GameObject anim = characterState.characterControl.SkinnedMeshAnimator.gameObject;
-            anim.transform.parent = characterState.characterControl.ledgeChecker.GrabbedLedge.transform;
-            anim.transform.localPosition = characterState.characterControl.ledgeChecker.GrabbedLedge.Offset;
 
-            characterState.characterControl.RIGID_BODY.velocity = Vector3.zero;
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-
+            if (!characterState.characterControl.RIGID_BODY.useGravity)
+            {
+                characterState.characterControl.RIGID_BODY.MovePosition(
+                    characterState.characterControl.ledgeChecker.GrabbedLedge.transform.position +
+                    characterState.characterControl.ledgeChecker.GrabbedLedge.Offset);
+            }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)

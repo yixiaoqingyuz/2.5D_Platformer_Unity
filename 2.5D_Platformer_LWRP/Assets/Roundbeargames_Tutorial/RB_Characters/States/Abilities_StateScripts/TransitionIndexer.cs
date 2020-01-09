@@ -13,12 +13,24 @@ namespace Roundbeargames
         ATTACK,
         JUMP,
         GRABBING_LEDGE,
-
         LEFT_OR_RIGHT,
-
         GROUNDED,
-
         MOVE_FORWARD,
+        AIR,
+        BLOCKED_BY_WALL,
+        CAN_WALLJUMP,
+        NOT_GRABBING_LEDGE,
+        NOT_BLOCKED_BY_WALL,
+        MOVING_TO_BLOCKING_OBJ,
+        DOUBLE_TAP_UP,
+        DOUBLE_TAP_DOWN,
+        DOUBLE_TAP_LEFT,
+        DOUBLE_TAP_RIGHT,
+        TOUCHING_WEAPON,
+        HOLDING_AXE,
+        NOT_MOVING,
+        RUN,
+        NOT_RUN,
     }
 
     [CreateAssetMenu(fileName = "New State", menuName = "Roundbeargames/AbilityData/TransitionIndexer")]
@@ -31,24 +43,41 @@ namespace Roundbeargames
         {
             if (MakeTransition(characterState.characterControl))
             {
-                animator.SetInteger(TransitionParameter.TransitionIndex.ToString(), Index);
+                animator.SetInteger(HashManager.Instance.DicMainParams[TransitionParameter.TransitionIndex], Index);
             }
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            if (animator.GetInteger(TransitionParameter.TransitionIndex.ToString()) == 0)
+            characterState.characterControl.animationProgress.CheckWallBlock =
+                StartCheckingWallBlock();
+
+            if (animator.GetInteger(HashManager.Instance.DicMainParams[TransitionParameter.TransitionIndex]) == 0)
             {
                 if (MakeTransition(characterState.characterControl))
                 {
-                    animator.SetInteger(TransitionParameter.TransitionIndex.ToString(), Index);
+                    animator.SetInteger(HashManager.Instance.DicMainParams[TransitionParameter.TransitionIndex], Index);
                 }
             }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            animator.SetInteger(TransitionParameter.TransitionIndex.ToString(), 0);
+            animator.SetInteger(HashManager.Instance.DicMainParams[TransitionParameter.TransitionIndex], 0);
+        }
+
+        private bool StartCheckingWallBlock()
+        {
+            foreach(TransitionConditionType t in transitionConditions)
+            {
+                if (t == TransitionConditionType.BLOCKED_BY_WALL ||
+                    t == TransitionConditionType.NOT_BLOCKED_BY_WALL)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool MakeTransition(CharacterControl control)
@@ -113,9 +142,22 @@ namespace Roundbeargames
                             }
                         }
                         break;
+                    case TransitionConditionType.NOT_GRABBING_LEDGE:
+                        {
+                            if (control.ledgeChecker.IsGrabbingLedge)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
                     case TransitionConditionType.LEFT_OR_RIGHT:
                         {
                             if (!control.MoveLeft && !control.MoveRight)
+                            {
+                                return false;
+                            }
+
+                            if (control.MoveLeft && control.MoveRight)
                             {
                                 return false;
                             }
@@ -123,7 +165,7 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.GROUNDED:
                         {
-                            if (control.SkinnedMeshAnimator.GetBool(TransitionParameter.Grounded.ToString()) == false)
+                            if (control.SkinnedMeshAnimator.GetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded]) == false)
                             {
                                 return false;
                             }
@@ -143,6 +185,164 @@ namespace Roundbeargames
                                 if (!control.MoveLeft)
                                 {
                                     return false;
+                                }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.AIR:
+                        {
+                            if (!control.SkinnedMeshAnimator.GetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded]) == false)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.BLOCKED_BY_WALL:
+                        {
+                            foreach(OverlapChecker oc in control.collisionSpheres.FrontOverlapCheckers)
+                            {
+                                if (!oc.ObjIsOverlapping)
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.NOT_BLOCKED_BY_WALL:
+                        {
+                            bool AllIsOverlapping = true;
+
+                            foreach (OverlapChecker oc in control.collisionSpheres.FrontOverlapCheckers)
+                            {
+                                if (!oc.ObjIsOverlapping)
+                                {
+                                    AllIsOverlapping = false;
+                                }
+                            }
+
+                            if (AllIsOverlapping)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.CAN_WALLJUMP:
+                        {
+                            if (!control.animationProgress.CanWallJump)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.MOVING_TO_BLOCKING_OBJ:
+                        {
+                            foreach(KeyValuePair<GameObject, GameObject> data in
+                                control.animationProgress.BlockingObjs)
+                            {
+                                Vector3 dir = data.Value.transform.position -
+                                control.transform.position;
+
+                                if (dir.z > 0f && !control.MoveRight)
+                                {
+                                    return false;
+                                }
+
+                                if (dir.z < 0f && !control.MoveLeft)
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.DOUBLE_TAP_UP:
+                        {
+                            if (!control.manualInput.DoubleTaps.Contains(InputKeyType.KEY_MOVE_UP))
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.DOUBLE_TAP_DOWN:
+                        {
+                            if (!control.manualInput.DoubleTaps.Contains(InputKeyType.KEY_MOVE_DOWN))
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.DOUBLE_TAP_LEFT:
+                        {
+                            return false;
+                        }
+                        break;
+                    case TransitionConditionType.DOUBLE_TAP_RIGHT:
+                        {
+                            return false;
+                        }
+                        break;
+                    case TransitionConditionType.TOUCHING_WEAPON:
+                        {
+                            if (control.animationProgress.CollidingWeapons.Count == 0)
+                            {
+                                if (control.animationProgress.HoldingWeapon == null)
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.HOLDING_AXE:
+                        {
+                            if (control.animationProgress.HoldingWeapon == null)
+                            {
+                                return false;
+                            }
+
+                            if (!control.animationProgress.HoldingWeapon.name.Contains("Axe"))
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.NOT_MOVING:
+                        {
+                            if (control.MoveLeft || control.MoveRight)
+                            {
+                                if (!(control.MoveLeft && control.MoveRight))
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.RUN:
+                        {
+                            if (!control.Turbo)
+                            {
+                                return false;
+                            }
+
+                            if (control.MoveLeft && control.MoveRight)
+                            {
+                                return false;
+                            }
+
+                            if (!control.MoveLeft && !control.MoveRight)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.NOT_RUN:
+                        {
+                            if (control.Turbo)
+                            {
+                                if (control.MoveLeft || control.MoveRight)
+                                {
+                                    if (!(control.MoveLeft && control.MoveRight))
+                                    {
+                                        return false;
+                                    }
                                 }
                             }
                         }

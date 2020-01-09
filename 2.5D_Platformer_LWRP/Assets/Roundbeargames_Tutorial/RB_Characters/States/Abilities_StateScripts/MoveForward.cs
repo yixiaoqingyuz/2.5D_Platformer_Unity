@@ -7,6 +7,8 @@ namespace Roundbeargames
     [CreateAssetMenu(fileName = "New State", menuName = "Roundbeargames/AbilityData/MoveForward")]
     public class MoveForward : StateData
     {
+        public bool debug;
+
         public bool AllowEarlyTurn;
         public bool LockDirection;
         public bool LockDirectionNextState;
@@ -14,19 +16,22 @@ namespace Roundbeargames
         public AnimationCurve SpeedGraph;
         public float Speed;
         public float BlockDistance;
+
+        [Header("IgnoreCharacterBox")]
         public bool IgnoreCharacterBox;
+        public float IgnoreStartTime;
+        public float IgnoreEndTime;
 
         [Header("Momentum")]
         public bool UseMomentum;
         public float StartingMomentum;
         public float MaxMomentum;
         public bool ClearMomentumOnExit;
-
-        private List<GameObject> SpheresList;
-        private float DirBlock;
-
+        
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
+            characterState.characterControl.animationProgress.LatestMoveForward = this;
+
             if (AllowEarlyTurn && !characterState.characterControl.animationProgress.disallowEarlyTurn)
             {
                 if (!characterState.characterControl.animationProgress.LockDirectionNextState)
@@ -56,29 +61,47 @@ namespace Roundbeargames
 
             characterState.characterControl.animationProgress.disallowEarlyTurn = false;
             characterState.characterControl.animationProgress.LockDirectionNextState = false;
+            //characterState.characterControl.animationProgress.BlockingObjs.Clear();
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
+            if (debug)
+            {
+                Debug.Log(stateInfo.normalizedTime);
+            }
+
             characterState.characterControl.animationProgress.LockDirectionNextState = LockDirectionNextState;
 
-            if (characterState.characterControl.animationProgress.IsRunning(typeof(MoveForward), this))
+            if (characterState.characterControl.animationProgress.
+                LatestMoveForward != this)
             {
                 return;
             }
 
+            if (characterState.characterControl.animationProgress.
+                IsRunning(typeof(WallSlide)))
+            {
+                return;
+            }
+
+            UpdateCharacterIgnoreTime(characterState.characterControl, stateInfo);
+
             if (characterState.characterControl.Jump)
             {
-                animator.SetBool(TransitionParameter.Jump.ToString(), true);
+                if (characterState.characterControl.animationProgress.Ground != null)
+                {
+                    animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Jump], true);
+                }
             }
 
             if (characterState.characterControl.Turbo)
             {
-                animator.SetBool(TransitionParameter.Turbo.ToString(), true);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Turbo], true);
             }
             else
             {
-                animator.SetBool(TransitionParameter.Turbo.ToString(), false);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Turbo], false);
             }
 
             if (UseMomentum)
@@ -108,15 +131,29 @@ namespace Roundbeargames
 
         private void UpdateMomentum(CharacterControl control, AnimatorStateInfo stateInfo)
         {
-            if (control.MoveRight)
+            if (!control.animationProgress.RightSideIsBlocked())
             {
-                control.animationProgress.AirMomentum += SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
+                if (control.MoveRight)
+                {
+                    control.animationProgress.AirMomentum += SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
+                }
+            }
+            
+            if (!control.animationProgress.LeftSideIsBlocked())
+            {
+                if (control.MoveLeft)
+                {
+                    control.animationProgress.AirMomentum -= SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
+                }
             }
 
-            if (control.MoveLeft)
+            if (control.animationProgress.RightSideIsBlocked() ||
+                control.animationProgress.LeftSideIsBlocked())
             {
-                control.animationProgress.AirMomentum -= SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
+                control.animationProgress.AirMomentum =
+                    Mathf.Lerp(control.animationProgress.AirMomentum, 0f, Time.deltaTime * 1.5f);  
             }
+            
 
             if (Mathf.Abs(control.animationProgress.AirMomentum) >= MaxMomentum)
             {
@@ -139,7 +176,7 @@ namespace Roundbeargames
                 control.FaceForward(false);
             }
 
-            if (!IsBlocked(control, Speed))
+            if (!IsBlocked(control, Speed, stateInfo))
             {
                 control.MoveForward(Speed, Mathf.Abs(control.animationProgress.AirMomentum));
             }
@@ -147,18 +184,18 @@ namespace Roundbeargames
 
         private void ConstantMove(CharacterControl control, Animator animator, AnimatorStateInfo stateInfo)
         {
-            if (!IsBlocked(control, Speed))
+            if (!IsBlocked(control, Speed, stateInfo))
             {
                 control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
             }
 
             if (!control.MoveRight && !control.MoveLeft)
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), false);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], false);
             }
             else
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), true);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], true);
             }
         }
 
@@ -166,19 +203,19 @@ namespace Roundbeargames
         {
             if (control.MoveRight && control.MoveLeft)
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), false);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], false);
                 return;
             }
 
             if (!control.MoveRight && !control.MoveLeft)
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), false);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], false);
                 return;
             }
 
             if (control.MoveRight)
             {
-                if (!IsBlocked(control, Speed))
+                if (!IsBlocked(control, Speed, stateInfo))
                 {
                     control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
                 }
@@ -186,7 +223,7 @@ namespace Roundbeargames
 
             if (control.MoveLeft)
             {
-                if (!IsBlocked(control, Speed))
+                if (!IsBlocked(control, Speed, stateInfo))
                 {
                     control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
                 }
@@ -211,78 +248,34 @@ namespace Roundbeargames
             }
         }
 
-        bool IgnoringCharacterBox(Collider col)
+        void UpdateCharacterIgnoreTime(CharacterControl control, AnimatorStateInfo stateInfo)
         {
             if (!IgnoreCharacterBox)
             {
-                return false;
+                control.animationProgress.IsIgnoreCharacterTime = false;
             }
 
-            if (col.gameObject.GetComponent<CharacterControl>() != null)
+            if (stateInfo.normalizedTime > IgnoreStartTime &&
+                stateInfo.normalizedTime < IgnoreEndTime)
             {
-                return true;
-            }
-
-            return false;
-        }
-
-        bool IsBlocked(CharacterControl control, float speed)
-        {
-            if (speed > 0)
-            {
-                SpheresList = control.collisionSpheres.FrontSpheres;
-                DirBlock = 0.3f;
+                control.animationProgress.IsIgnoreCharacterTime = true;
             }
             else
             {
-                SpheresList = control.collisionSpheres.BackSpheres;
-                DirBlock = -0.3f;
+                control.animationProgress.IsIgnoreCharacterTime = false;
             }
-
-            foreach (GameObject o in SpheresList)
-            {
-                Debug.DrawRay(o.transform.position, control.transform.forward * DirBlock, Color.yellow);
-                RaycastHit hit;
-                if (Physics.Raycast(o.transform.position, control.transform.forward * DirBlock, out hit, BlockDistance))
-                {
-                    if (!control.RagdollParts.Contains(hit.collider))
-                    {
-                        if (!IsBodyPart(hit.collider) 
-                            && !Ledge.IsLedge(hit.collider.gameObject)
-                            && !Ledge.IsLedgeChecker(hit.collider.gameObject)
-                            && !IgnoringCharacterBox(hit.collider))
-                        {
-                            control.animationProgress.BlockingObj = hit.collider.transform.root.gameObject;
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            control.animationProgress.BlockingObj = null;
-            return false;
         }
-
-        bool IsBodyPart(Collider col)
+           
+        bool IsBlocked(CharacterControl control, float speed, AnimatorStateInfo stateInfo)
         {
-            CharacterControl control = col.transform.root.GetComponent<CharacterControl>();
-
-            if (control == null)
-            {
-                return false;
-            }
-
-            if (control.gameObject == col.gameObject)
-            {
-                return false;
-            }
-
-            if (control.RagdollParts.Contains(col))
+            if (control.animationProgress.BlockingObjs.Count != 0)
             {
                 return true;
             }
-
-            return false;
+            else
+            {
+                return false;
+            }
         }
     }
 }

@@ -10,8 +10,6 @@ namespace Roundbeargames
         start_walking,
         jump_platform,
         fall_platform,
-
-        start_running,
     }
 
     [CreateAssetMenu(fileName = "New State", menuName = "Roundbeargames/AI/SendPathfindingAgent")]
@@ -27,7 +25,10 @@ namespace Roundbeargames
 
             characterState.characterControl.aiProgress.pathfindingAgent.owner = characterState.characterControl;
             characterState.characterControl.aiProgress.pathfindingAgent.GetComponent<NavMeshAgent>().enabled = false;
-            characterState.characterControl.aiProgress.pathfindingAgent.transform.position = characterState.characterControl.transform.position;
+
+            characterState.characterControl.aiProgress.pathfindingAgent.transform.position =
+                characterState.characterControl.transform.position + (Vector3.up * 0.5f);
+
             characterState.characterControl.navMeshObstacle.carving = false;
             characterState.characterControl.aiProgress.pathfindingAgent.GoToTarget();
         }
@@ -36,15 +37,15 @@ namespace Roundbeargames
         {
             if (characterState.characterControl.aiProgress.pathfindingAgent.StartWalk)
             {
-                animator.SetBool(AI_Walk_Transitions.start_walking.ToString(), true);
-                animator.SetBool(AI_Walk_Transitions.start_running.ToString(), true);
+                animator.SetBool(HashManager.Instance.
+                    DicAITrans[AI_Walk_Transitions.start_walking], true);
             }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            animator.SetBool(AI_Walk_Transitions.start_walking.ToString(), false);
-            animator.SetBool(AI_Walk_Transitions.start_running.ToString(), false);
+            animator.SetBool(HashManager.Instance.
+                DicAITrans[AI_Walk_Transitions.start_walking], false);
         }
     }
 }

@@ -10,20 +10,27 @@ namespace Roundbeargames
     {
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
+            characterState.characterControl.aiProgress.SetRandomFlyingKick();
             characterState.characterControl.aiController.WalkStraightToStartSphere();
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
+            if (characterState.characterControl.Attack)
+            {
+                return;
+            }
+
             //jump
             if (characterState.characterControl.aiProgress.EndSphereIsHigher())
             {
-                if (characterState.characterControl.aiProgress.AIDistanceToStartSphere() < 0.01f)
+                if (characterState.characterControl.aiProgress.AIDistanceToStartSphere() < 0.08f)
                 {
                     characterState.characterControl.MoveRight = false;
                     characterState.characterControl.MoveLeft = false;
 
-                    animator.SetBool(AI_Walk_Transitions.jump_platform.ToString(), true);
+                    animator.SetBool(HashManager.Instance.
+                        DicAITrans[AI_Walk_Transitions.jump_platform], true);
                     return;
                 }
             }
@@ -31,12 +38,15 @@ namespace Roundbeargames
             //fall
             if (characterState.characterControl.aiProgress.EndSphereIsLower())
             {
-                animator.SetBool(AI_Walk_Transitions.fall_platform.ToString(), true);
+                characterState.characterControl.aiController.WalkStraightToEndSphere();
+
+                animator.SetBool(HashManager.Instance.
+                    DicAITrans[AI_Walk_Transitions.fall_platform], true);
                 return;
             }
 
             //straight
-            if (characterState.characterControl.aiProgress.AIDistanceToStartSphere() > 3f)
+            if (characterState.characterControl.aiProgress.AIDistanceToStartSphere() > 1.5f)
             {
                 characterState.characterControl.Turbo = true;
             }
@@ -54,12 +64,19 @@ namespace Roundbeargames
                 characterState.characterControl.MoveLeft = false;
             }
 
+            if (characterState.characterControl.aiProgress.TargetIsOnSamePlatform())
+            {
+                characterState.characterControl.aiProgress.RepositionDestination();
+            }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            animator.SetBool(AI_Walk_Transitions.jump_platform.ToString(), false);
-            animator.SetBool(AI_Walk_Transitions.fall_platform.ToString(), false);
+            animator.SetBool(HashManager.Instance.
+                DicAITrans[AI_Walk_Transitions.jump_platform], false);
+
+            animator.SetBool(HashManager.Instance.
+                DicAITrans[AI_Walk_Transitions.fall_platform], false);
         }
     }
 }

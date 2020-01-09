@@ -9,33 +9,32 @@ namespace Roundbeargames
     {
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            animator.SetBool(TransitionParameter.Jump.ToString(), false);
-            animator.SetBool(TransitionParameter.Attack.ToString(), false);
-            animator.SetBool(TransitionParameter.Move.ToString(), false);
+            animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Jump], false);
+            animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Attack], false);
+            animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], false);
 
             characterState.characterControl.animationProgress.disallowEarlyTurn = false;
-            characterState.characterControl.animationProgress.BlockingObj = null;
+            characterState.characterControl.animationProgress.BlockingObjs.Clear();
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
             characterState.characterControl.animationProgress.LockDirectionNextState = false;
 
-            if (characterState.characterControl.animationProgress.AttackTriggered)
-            {
-                animator.SetBool(TransitionParameter.Attack.ToString(), true);
-            }
-
             if (characterState.characterControl.Jump)
             {
                 if (!characterState.characterControl.animationProgress.Jumped)
                 {
-                    animator.SetBool(TransitionParameter.Jump.ToString(), true);
+                    if (characterState.characterControl.animationProgress.Ground != null)
+                    {
+                        animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Jump], true);
+                    }
                 }
             }
             else
             {
-                if (!characterState.characterControl.animationProgress.IsRunning(typeof(Jump), this))
+                if (!characterState.characterControl.animationProgress.
+                    IsRunning(typeof(Jump)))
                 {
                     characterState.characterControl.animationProgress.Jumped = false;
                 }
@@ -47,11 +46,11 @@ namespace Roundbeargames
             }
             else if (characterState.characterControl.MoveRight)
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), true);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], true);
             }
             else if (characterState.characterControl.MoveLeft)
             {
-                animator.SetBool(TransitionParameter.Move.ToString(), true);
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], true);
             }
         }
 

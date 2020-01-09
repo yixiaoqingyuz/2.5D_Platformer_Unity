@@ -4,32 +4,27 @@ using UnityEngine;
 
 namespace Roundbeargames
 {
-    public enum GeneralBodyPart
-    {
-        Upper,
-        Lower,
-        Arm,
-        Leg,
-    }
-
     public class TriggerDetector : MonoBehaviour
     {
-        public GeneralBodyPart generalBodyPart;
-
-        public List<Collider> CollidingParts = new List<Collider>();
-        private CharacterControl owner;
+        public CharacterControl control;
 
         public Vector3 LastPosition;
         public Quaternion LastRotation;
 
         private void Awake()
         {
-            owner = this.GetComponentInParent<CharacterControl>();
+            control = this.GetComponentInParent<CharacterControl>();
         }
 
         private void OnTriggerEnter(Collider col)
         {
-            if (owner.RagdollParts.Contains(col))
+            CheckCollidingBodyParts(col);
+            CheckCollidingWeapons(col);
+        }
+
+        void CheckCollidingBodyParts(Collider col)
+        {
+            if (control.RagdollParts.Contains(col))
             {
                 return;
             }
@@ -46,17 +41,80 @@ namespace Roundbeargames
                 return;
             }
 
-            if (!CollidingParts.Contains(col))
+            if (!control.animationProgress.CollidingBodyParts.ContainsKey(this))
             {
-                CollidingParts.Add(col);
+                control.animationProgress.CollidingBodyParts.Add(this, new List<Collider>());
+            }
+
+            if (!control.animationProgress.CollidingBodyParts[this].Contains(col))
+            {
+                control.animationProgress.CollidingBodyParts[this].Add(col);
             }
         }
 
-        private void OnTriggerExit(Collider attacker)
+        void CheckCollidingWeapons(Collider col)
         {
-            if (CollidingParts.Contains(attacker))
+            if (col.transform.root.gameObject.GetComponent<MeleeWeapon>() == null)
             {
-                CollidingParts.Remove(attacker);
+                return;
+            }
+
+            if (!control.animationProgress.CollidingWeapons.ContainsKey(this))
+            {
+                control.animationProgress.CollidingWeapons.Add(this, new List<Collider>());
+            }
+
+            if (!control.animationProgress.CollidingWeapons[this].Contains(col))
+            {
+                control.animationProgress.CollidingWeapons[this].Add(col);
+            }
+        }
+
+        private void OnTriggerExit(Collider col)
+        {
+            CheckExitingBodyParts(col);
+            CheckExitingWeapons(col);
+        }
+
+        void CheckExitingBodyParts(Collider col)
+        {
+            if (control == null)
+            {
+                return;
+            }
+
+            if (control.animationProgress.CollidingBodyParts.ContainsKey(this))
+            {
+                if (control.animationProgress.CollidingBodyParts[this].Contains(col))
+                {
+                    control.animationProgress.CollidingBodyParts[this].Remove(col);
+                }
+
+                if (control.animationProgress.CollidingBodyParts[this].Count == 0)
+                {
+                    control.animationProgress.CollidingBodyParts.Remove(this);
+                }
+            }
+        }
+
+        void CheckExitingWeapons(Collider col)
+        {
+            if (control == null)
+            {
+                return;
+            }
+
+            if (control.animationProgress.CollidingWeapons.ContainsKey(this))
+            {
+                if (control.animationProgress.CollidingWeapons[this].Contains(col))
+                {
+                    control.animationProgress.CollidingWeapons[this].Remove(col);
+                }
+
+                if (control.animationProgress.CollidingWeapons[this].Count == 0)
+                {
+                    control.animationProgress.CollidingWeapons.Remove(this);
+                }
             }
         }
     }

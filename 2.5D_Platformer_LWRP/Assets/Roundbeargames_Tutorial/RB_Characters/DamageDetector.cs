@@ -7,13 +7,12 @@ namespace Roundbeargames
     public class DamageDetector : MonoBehaviour
     {
         CharacterControl control;
-        GeneralBodyPart DamagedPart;
-
-        public int DamageTaken;
-
+        //public int DamageTaken;
+        [SerializeField]
+        private float hp;
+        
         private void Awake()
         {
-            DamageTaken = 0;
             control = GetComponent<CharacterControl>();
         }
 
@@ -21,7 +20,10 @@ namespace Roundbeargames
         {
             if (AttackManager.Instance.CurrentAttacks.Count > 0)
             {
-                CheckAttack();
+                if (control.animationProgress.CollidingBodyParts.Count != 0)
+                {
+                    CheckAttack();
+                }
             }
         }
 
@@ -83,43 +85,22 @@ namespace Roundbeargames
 
         private bool IsCollided(AttackInfo info)
         {
-            foreach (TriggerDetector trigger in control.GetAllTriggers())
+            foreach(KeyValuePair<TriggerDetector, List<Collider>> data in
+                control.animationProgress.CollidingBodyParts)
             {
-                foreach (Collider collider in trigger.CollidingParts)
+                foreach(Collider collider in data.Value)
                 {
                     foreach (AttackPartType part in info.AttackParts)
                     {
-                        if (part == AttackPartType.LEFT_HAND)
+                        if (info.Attacker.GetAttackingPart(part) ==
+                            collider.gameObject)
                         {
-                            if (collider.gameObject == info.Attacker.LeftHand_Attack)
-                            {
-                                DamagedPart = trigger.generalBodyPart;
-                                return true;
-                            }
-                        }
-                        else if (part == AttackPartType.RIGHT_HAND)
-                        {
-                            if (collider.gameObject == info.Attacker.RightHand_Attack)
-                            {
-                                DamagedPart = trigger.generalBodyPart;
-                                return true;
-                            }
-                        }
-                        else if (part == AttackPartType.LEFT_FOOT)
-                        {
-                            if (collider.gameObject == info.Attacker.LeftFoot_Attack)
-                            {
-                                DamagedPart = trigger.generalBodyPart;
-                                return true;
-                            }
-                        }
-                        else if (part == AttackPartType.RIGHT_FOOT)
-                        {
-                            if (collider.gameObject == info.Attacker.RightFoot_Attack)
-                            {
-                                DamagedPart = trigger.generalBodyPart;
-                                return true;
-                            }
+                            control.animationProgress.Attack = info.AttackAbility;
+                            control.animationProgress.Attacker = info.Attacker;
+                            control.animationProgress.DamagedTrigger = data.Key;
+                            control.animationProgress.AttackingPart =
+                                info.Attacker.GetAttackingPart(part);
+                            return true;
                         }
                     }
                 }
@@ -128,36 +109,87 @@ namespace Roundbeargames
             return false;
         }
 
+        public bool IsDead()
+        {
+            if (hp <= 0f)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         private void TakeDamage(AttackInfo info)
         {
-            if (DamageTaken > 0)
+            if (IsDead())
             {
                 return;
             }
 
             if (info.MustCollide)
             {
-                CameraManager.Instance.ShakeCamera(0.2f);
+                CameraManager.Instance.ShakeCamera(0.3f);
+
+                if (info.AttackAbility.UseDeathParticles)
+                {
+                    if (info.AttackAbility.ParticleType.ToString().Contains("VFX"))
+                    {
+                        GameObject vfx =
+                            PoolManager.Instance.GetObject(info.AttackAbility.ParticleType);
+
+                        vfx.transform.position =
+                            control.animationProgress.AttackingPart.transform.position;
+
+                        vfx.SetActive(true);
+
+                        if (info.Attacker.IsFacingForward())
+                        {
+                            vfx.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+                        }
+                        else
+                        {
+                            vfx.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                        }
+                    }
+                }
             }
 
             Debug.Log(info.Attacker.gameObject.name + " hits: " + this.gameObject.name);
-            Debug.Log(this.gameObject.name + " hit in " + DamagedPart.ToString());
-            
-            control.SkinnedMeshAnimator.runtimeAnimatorController = DeathAnimationManager.Instance.GetAnimator(DamagedPart, info);
-            //control.CacheCharacterControl(control.SkinnedMeshAnimator);
+
             info.CurrentHits++;
+            hp -= info.AttackAbility.Damage;
 
-            control.GetComponent<BoxCollider>().enabled = false;
-            control.ledgeChecker.GetComponent<BoxCollider>().enabled = false;
-            control.RIGID_BODY.useGravity = false;
+            AttackManager.Instance.ForceDeregister(control);
 
-            if (control.aiController != null)
+            if (IsDead())
             {
-                control.aiController.gameObject.SetActive(false);
-                control.navMeshObstacle.enabled = false;
-            }
+                control.animationProgress.RagdollTriggered = true;
+                control.GetComponent<BoxCollider>().enabled = false;
+                control.ledgeChecker.GetComponent<BoxCollider>().enabled = false;
+                control.RIGID_BODY.useGravity = false;
 
-            DamageTaken++;
+                if (control.aiController != null)
+                {
+                    control.aiController.gameObject.SetActive(false);
+                    control.navMeshObstacle.enabled = false;
+                }
+            }
+            else
+            {
+                //damage reaction animation
+            }
+        }
+
+        public void TriggerSpikeDeath(RuntimeAnimatorController animator)
+        {
+            control.SkinnedMeshAnimator.runtimeAnimatorController = animator;
+        }
+
+        public void TakeTotalDamage()
+        {
+            hp = 0f;
         }
     }
 }

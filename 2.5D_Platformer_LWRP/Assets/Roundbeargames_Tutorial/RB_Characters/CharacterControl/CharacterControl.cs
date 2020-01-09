@@ -16,6 +16,7 @@ namespace Roundbeargames
         TransitionIndex,
         Turbo,
         Turn,
+        LockTransition,
     }
 
     public enum RBScenes
@@ -36,6 +37,7 @@ namespace Roundbeargames
         public bool Attack;
 
         [Header("SubComponents")]
+        public ManualInput manualInput;
         public LedgeChecker ledgeChecker;
         public AnimationProgress animationProgress;
         public AIProgress aiProgress;
@@ -57,7 +59,6 @@ namespace Roundbeargames
         public GameObject LeftFoot_Attack;
         public GameObject RightFoot_Attack;
 
-        private List<TriggerDetector> TriggerDetectors = new List<TriggerDetector>();
         private Dictionary<string, GameObject> ChildObjects = new Dictionary<string, GameObject>();
 
         private Rigidbody rigid;
@@ -75,6 +76,7 @@ namespace Roundbeargames
 
         private void Awake()
         {
+            manualInput = GetComponent<ManualInput>();
             ledgeChecker = GetComponentInChildren<LedgeChecker>();
             animationProgress = GetComponent<AnimationProgress>();
             aiProgress = GetComponentInChildren<AIProgress>();
@@ -119,21 +121,6 @@ namespace Roundbeargames
             {
                 CharacterManager.Instance.Characters.Add(this);
             }
-        }
-
-        public List<TriggerDetector> GetAllTriggers()
-        {
-            if (TriggerDetectors.Count == 0)
-            {
-                TriggerDetector[] arr = this.gameObject.GetComponentsInChildren<TriggerDetector>();
-
-                foreach(TriggerDetector d in arr)
-                {
-                    TriggerDetectors.Add(d);
-                }
-            }
-
-            return TriggerDetectors;
         }
         
         public void SetRagdollParts()
@@ -203,19 +190,29 @@ namespace Roundbeargames
 
                 c.attachedRigidbody.velocity = Vector3.zero;
             }
+
+            //add force
+            if (animationProgress.DamagedTrigger != null)
+            {
+                animationProgress.DamagedTrigger.GetComponent<Rigidbody>().
+                    AddForce(animationProgress.Attacker.transform.forward * animationProgress.Attack.ForwardForce +
+                    animationProgress.Attacker.transform.right * animationProgress.Attack.RightForce +
+                    animationProgress.Attacker.transform.up * animationProgress.Attack.UpForce);
+            }
         }
 
         public void UpdateBoxCollider_Size()
         {
-            if (!animationProgress.UpdatingBoxCollider)
+            if (!animationProgress.IsRunning(typeof(UpdateBoxCollider)))
             {
                 return;
             }
 
-            if (Vector3.SqrMagnitude(boxCollider.size - animationProgress.TargetSize) > 0.01f)
+            if (Vector3.SqrMagnitude(boxCollider.size - animationProgress.TargetSize) > 0.00001f)
             {
-                boxCollider.size = Vector3.Lerp(boxCollider.size, animationProgress.TargetSize
-                , Time.deltaTime * animationProgress.Size_Speed);
+                boxCollider.size = Vector3.Lerp(boxCollider.size,
+                    animationProgress.TargetSize,
+                    Time.deltaTime * animationProgress.Size_Speed);
 
                 animationProgress.UpdatingSpheres = true;
             }
@@ -223,15 +220,16 @@ namespace Roundbeargames
 
         public void UpdateBoxCollider_Center()
         {
-            if (!animationProgress.UpdatingBoxCollider)
+            if (!animationProgress.IsRunning(typeof(UpdateBoxCollider)))
             {
                 return;
             }
 
-            if (Vector3.SqrMagnitude(boxCollider.center - animationProgress.TargetCenter) > 0.01f)
+            if (Vector3.SqrMagnitude(boxCollider.center - animationProgress.TargetCenter) > 0.00001f)
             {
-                boxCollider.center = Vector3.Lerp(boxCollider.center, animationProgress.TargetCenter
-                , Time.deltaTime * animationProgress.Center_Speed);
+                boxCollider.center = Vector3.Lerp(boxCollider.center,
+                    animationProgress.TargetCenter,
+                    Time.deltaTime * animationProgress.Center_Speed);
 
                 animationProgress.UpdatingSpheres = true;
             }
@@ -255,12 +253,22 @@ namespace Roundbeargames
                 collisionSpheres.Reposition_FrontSpheres();
                 collisionSpheres.Reposition_BottomSpheres();
                 collisionSpheres.Reposition_BackSpheres();
+                collisionSpheres.Reposition_UpSpheres();
             }
 
             if (animationProgress.RagdollTriggered)
             {
                 TurnOnRagdoll();
                 animationProgress.RagdollTriggered = false;
+            }
+
+            //slow down wallslide
+            if (animationProgress.MaxFallVelocity.y != 0f)
+            {
+                if (RIGID_BODY.velocity.y <= animationProgress.MaxFallVelocity.y)
+                {
+                    RIGID_BODY.velocity = animationProgress.MaxFallVelocity;
+                }
             }
         }
         
@@ -332,6 +340,32 @@ namespace Roundbeargames
                     ChildObjects.Add(name, t.gameObject);
                     return t.gameObject;
                 }
+            }
+
+            return null;
+        }
+
+        public GameObject GetAttackingPart(AttackPartType attackPart)
+        {
+            if (attackPart == AttackPartType.LEFT_HAND)
+            {
+                return LeftHand_Attack;
+            }
+            else if (attackPart == AttackPartType.RIGHT_HAND)
+            {
+                return RightHand_Attack;
+            }
+            else if (attackPart == AttackPartType.LEFT_FOOT)
+            {
+                return LeftFoot_Attack;
+            }
+            else if (attackPart == AttackPartType.RIGHT_FOOT)
+            {
+                return RightFoot_Attack;
+            }
+            else if (attackPart == AttackPartType.MELEE_WEAPON)
+            {
+                return animationProgress.HoldingWeapon.triggerDetector.gameObject;
             }
 
             return null;
