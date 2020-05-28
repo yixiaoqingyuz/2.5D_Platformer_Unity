@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -31,6 +32,9 @@ namespace Roundbeargames
         NOT_MOVING,
         RUN,
         NOT_RUN,
+        BLOCKING,
+        NOT_BLOCKING,
+        ATTACK_IS_BLOCKED,
     }
 
     [CreateAssetMenu(fileName = "New State", menuName = "Roundbeargames/AbilityData/TransitionIndexer")]
@@ -49,8 +53,8 @@ namespace Roundbeargames
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            characterState.characterControl.animationProgress.CheckWallBlock =
-                StartCheckingWallBlock();
+            characterState.characterControl.AIR_CONTROL.SetBool(
+                (int)AirControlBool.CHECK_WALL_BLOCK, StartCheckingWallBlock());
 
             if (animator.GetInteger(HashManager.Instance.DicMainParams[TransitionParameter.TransitionIndex]) == 0)
             {
@@ -136,7 +140,7 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.GRABBING_LEDGE:
                         {
-                            if (!control.ledgeChecker.IsGrabbingLedge)
+                            if (!control.LEDGE_GRAB_DATA.isGrabbingLedge)
                             {
                                 return false;
                             }
@@ -144,7 +148,7 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.NOT_GRABBING_LEDGE:
                         {
-                            if (control.ledgeChecker.IsGrabbingLedge)
+                            if (control.LEDGE_GRAB_DATA.isGrabbingLedge)
                             {
                                 return false;
                             }
@@ -173,7 +177,7 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.MOVE_FORWARD:
                         {
-                            if (control.IsFacingForward())
+                            if (control.ROTATION_DATA.IsFacingForward())
                             {
                                 if (!control.MoveRight)
                                 {
@@ -228,7 +232,9 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.CAN_WALLJUMP:
                         {
-                            if (!control.animationProgress.CanWallJump)
+                            bool canWallJump = control.AIR_CONTROL.GetBool((int)AirControlBool.CAN_WALL_JUMP);
+
+                            if (!canWallJump)
                             {
                                 return false;
                             }
@@ -236,11 +242,11 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.MOVING_TO_BLOCKING_OBJ:
                         {
-                            foreach(KeyValuePair<GameObject, GameObject> data in
-                                control.animationProgress.BlockingObjs)
+                            List<GameObject> objs = control.BLOCKING_DATA.GetFrontBlockingObjList();
+
+                            foreach(GameObject o in objs)
                             {
-                                Vector3 dir = data.Value.transform.position -
-                                control.transform.position;
+                                Vector3 dir = o.transform.position - control.transform.position;
 
                                 if (dir.z > 0f && !control.MoveRight)
                                 {
@@ -256,7 +262,12 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.DOUBLE_TAP_UP:
                         {
-                            if (!control.manualInput.DoubleTaps.Contains(InputKeyType.KEY_MOVE_UP))
+                            if (!control.subComponentProcessor.ComponentsDic.ContainsKey(SubComponentType.MANUALINPUT))
+                            {
+                                return false;
+                            }
+
+                            if (!control.MANUAL_INPUT_DATA.DoubleTapUp())
                             {
                                 return false;
                             }
@@ -264,7 +275,12 @@ namespace Roundbeargames
                         break;
                     case TransitionConditionType.DOUBLE_TAP_DOWN:
                         {
-                            if (!control.manualInput.DoubleTaps.Contains(InputKeyType.KEY_MOVE_DOWN))
+                            if (!control.subComponentProcessor.ComponentsDic.ContainsKey(SubComponentType.MANUALINPUT))
+                            {
+                                return false;
+                            }
+
+                            if (!control.MANUAL_INPUT_DATA.DoubleTapDown())
                             {
                                 return false;
                             }
@@ -344,6 +360,30 @@ namespace Roundbeargames
                                         return false;
                                     }
                                 }
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.BLOCKING:
+                        {
+                            if (!control.Block)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.NOT_BLOCKING:
+                        {
+                            if (control.Block)
+                            {
+                                return false;
+                            }
+                        }
+                        break;
+                    case TransitionConditionType.ATTACK_IS_BLOCKED:
+                        {
+                            if (control.DAMAGE_DATA.BlockedAttack == null)
+                            {
+                                return false;
                             }
                         }
                         break;

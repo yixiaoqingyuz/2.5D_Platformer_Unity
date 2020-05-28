@@ -4,86 +4,128 @@ using UnityEngine;
 
 namespace Roundbeargames
 {
-    public class DamageDetector : MonoBehaviour
+    public class DamageDetector : SubComponent
     {
-        CharacterControl control;
-        //public int DamageTaken;
+        public DamageData damageData;
+
+        // temp
+
         [SerializeField]
         private float hp;
+
+        [SerializeField]
+        List<RuntimeAnimatorController> HitReactionList = new List<RuntimeAnimatorController>();
+
+        [Header("InstaKill")]
+        public RuntimeAnimatorController Assassination_A;
+        public RuntimeAnimatorController Assassination_B;
         
-        private void Awake()
+        [Header("Attack")]
+        public Attack MarioStompAttack;
+        public Attack AxeThrow;
+
+        private void Start()
         {
-            control = GetComponent<CharacterControl>();
+            damageData = new DamageData
+            {
+                Attacker = null,
+                Attack = null,
+                DamagedTrigger = null,
+                AttackingPart = null,
+                BlockedAttack = null,
+
+                IsDead = IsDead,
+            };
+
+            subComponentProcessor.damageData = damageData;
+            subComponentProcessor.ComponentsDic.Add(SubComponentType.DAMAGE_DETECTOR, this);
         }
 
-        private void Update()
+        public override void OnFixedUpdate()
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public override void OnUpdate()
         {
             if (AttackManager.Instance.CurrentAttacks.Count > 0)
             {
-                if (control.animationProgress.CollidingBodyParts.Count != 0)
-                {
-                    CheckAttack();
-                }
+                CheckAttack();
             }
         }
 
-        private void CheckAttack()
+        bool AttackIsValid(AttackInfo info)
+        {
+            if (info == null)
+            {
+                return false;
+            }
+
+            if (!info.isRegisterd)
+            {
+                return false;
+            }
+
+            if (info.isFinished)
+            {
+                return false;
+            }
+
+            if (info.CurrentHits >= info.MaxHits)
+            {
+                return false;
+            }
+
+            if (info.Attacker == control)
+            {
+                return false;
+            }
+
+            if (info.MustFaceAttacker)
+            {
+                Vector3 vec = this.transform.position - info.Attacker.transform.position;
+                if (vec.z * info.Attacker.transform.forward.z < 0f)
+                {
+                    return false;
+                }
+            }
+
+            if (info.RegisteredTargets.Contains(this.control))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        void CheckAttack()
         {
             foreach (AttackInfo info in AttackManager.Instance.CurrentAttacks)
             {
-                if (info == null)
+                if (AttackIsValid(info))
                 {
-                    continue;
-                }
-
-                if (!info.isRegisterd)
-                {
-                    continue;
-                }
-
-                if (info.isFinished)
-                {
-                    continue;
-                }
-
-                if (info.CurrentHits >= info.MaxHits)
-                {
-                    continue;
-                }
-
-                if (info.Attacker == control)
-                {
-                    continue;
-                }
-
-                if (info.MustFaceAttacker)
-                {
-                    Vector3 vec = this.transform.position - info.Attacker.transform.position;
-                    if (vec.z * info.Attacker.transform.forward.z < 0f)
+                    if (info.MustCollide)
                     {
-                        continue;
+                        if (control.animationProgress.CollidingBodyParts.Count != 0)
+                        {
+                            if (IsCollided(info))
+                            {
+                                TakeDamage(info);
+                            }
+                        }
                     }
-                }
-
-                if (info.MustCollide)
-                {
-                    if (IsCollided(info))
+                    else
                     {
-                        TakeDamage(info);
-                    }
-                }
-                else
-                {
-                    float dist = Vector3.SqrMagnitude(this.gameObject.transform.position - info.Attacker.transform.position);
-                    if (dist <= info.LethalRange)
-                    {
-                        TakeDamage(info);
+                        if (IsInLethalRange(info))
+                        {
+                            TakeDamage(info);
+                        }
                     }
                 }
             }
         }
 
-        private bool IsCollided(AttackInfo info)
+        bool IsCollided(AttackInfo info)
         {
             foreach(KeyValuePair<TriggerDetector, List<Collider>> data in
                 control.animationProgress.CollidingBodyParts)
@@ -95,11 +137,12 @@ namespace Roundbeargames
                         if (info.Attacker.GetAttackingPart(part) ==
                             collider.gameObject)
                         {
-                            control.animationProgress.Attack = info.AttackAbility;
-                            control.animationProgress.Attacker = info.Attacker;
-                            control.animationProgress.DamagedTrigger = data.Key;
-                            control.animationProgress.AttackingPart =
-                                info.Attacker.GetAttackingPart(part);
+                            damageData.SetData(
+                                info.Attacker,
+                                info.AttackAbility,
+                                data.Key,
+                                info.Attacker.GetAttackingPart(part));
+
                             return true;
                         }
                     }
@@ -109,7 +152,31 @@ namespace Roundbeargames
             return false;
         }
 
-        public bool IsDead()
+        bool IsInLethalRange(AttackInfo info)
+        {
+            foreach(Collider c in control.RAGDOLL_DATA.BodyParts)
+            {
+                float dist = Vector3.SqrMagnitude(c.transform.position - info.Attacker.transform.position);
+
+                if (dist <= info.LethalRange)
+                {
+                    int index = Random.Range(0, control.RAGDOLL_DATA.BodyParts.Count);
+                    TriggerDetector triggerDetector = control.RAGDOLL_DATA.BodyParts[index].GetComponent<TriggerDetector>();
+
+                    damageData.SetData(
+                        info.Attacker,
+                        info.AttackAbility,
+                        triggerDetector,
+                        null);
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool IsDead()
         {
             if (hp <= 0f)
             {
@@ -121,10 +188,52 @@ namespace Roundbeargames
             }
         }
 
-        private void TakeDamage(AttackInfo info)
+        bool IsBlocked(AttackInfo info)
+        {
+            if (info == damageData.BlockedAttack && damageData.BlockedAttack != null)
+            {
+                return true;
+            }
+
+            if (control.animationProgress.IsRunning(typeof(Block)))
+            {
+                Vector3 dir = info.Attacker.transform.position - control.transform.position;
+
+                if (dir.z > 0f)
+                {
+                    if (control.ROTATION_DATA.IsFacingForward())
+                    {
+                        return true;
+                    }
+                }
+                else if (dir.z < 0f)
+                {
+                    if (!control.ROTATION_DATA.IsFacingForward())
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public void TakeDamage(AttackInfo info)
         {
             if (IsDead())
             {
+                if (!info.RegisteredTargets.Contains(this.control))
+                {
+                    info.RegisteredTargets.Add(this.control);
+                    control.AddForceToDamagedPart(true);
+                }
+
+                return;
+            }
+
+            if (IsBlocked(info))
+            {
+                damageData.BlockedAttack = info;
                 return;
             }
 
@@ -140,11 +249,11 @@ namespace Roundbeargames
                             PoolManager.Instance.GetObject(info.AttackAbility.ParticleType);
 
                         vfx.transform.position =
-                            control.animationProgress.AttackingPart.transform.position;
+                            damageData.AttackingPart.transform.position;
 
                         vfx.SetActive(true);
 
-                        if (info.Attacker.IsFacingForward())
+                        if (info.Attacker.ROTATION_DATA.IsFacingForward())
                         {
                             vfx.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
                         }
@@ -162,23 +271,23 @@ namespace Roundbeargames
             hp -= info.AttackAbility.Damage;
 
             AttackManager.Instance.ForceDeregister(control);
+            control.animationProgress.CurrentRunningAbilities.Clear();
 
             if (IsDead())
             {
-                control.animationProgress.RagdollTriggered = true;
-                control.GetComponent<BoxCollider>().enabled = false;
-                control.ledgeChecker.GetComponent<BoxCollider>().enabled = false;
-                control.RIGID_BODY.useGravity = false;
-
-                if (control.aiController != null)
-                {
-                    control.aiController.gameObject.SetActive(false);
-                    control.navMeshObstacle.enabled = false;
-                }
+                control.RAGDOLL_DATA.RagdollTriggered = true;
             }
             else
             {
-                //damage reaction animation
+                int rand = Random.Range(0, HitReactionList.Count);
+
+                control.SkinnedMeshAnimator.runtimeAnimatorController = null;
+                control.SkinnedMeshAnimator.runtimeAnimatorController = HitReactionList[rand];
+            }
+
+            if (!info.RegisteredTargets.Contains(this.control))
+            {
+                info.RegisteredTargets.Add(this.control);
             }
         }
 
@@ -187,8 +296,39 @@ namespace Roundbeargames
             control.SkinnedMeshAnimator.runtimeAnimatorController = animator;
         }
 
-        public void TakeTotalDamage()
+        public void DeathBySpikes()
         {
+            damageData.DamagedTrigger = null;
+            hp = 0f;
+        }
+
+        public void DeathByInstaKill(CharacterControl attacker)
+        {
+            control.animationProgress.CurrentRunningAbilities.Clear();
+            attacker.animationProgress.CurrentRunningAbilities.Clear();
+
+            control.RIGID_BODY.useGravity = false;
+            control.boxCollider.enabled = false;
+            control.SkinnedMeshAnimator.runtimeAnimatorController = Assassination_B;
+
+            attacker.RIGID_BODY.useGravity = false;
+            attacker.boxCollider.enabled = false;
+            attacker.SkinnedMeshAnimator.runtimeAnimatorController = Assassination_A;
+
+            Vector3 dir = control.transform.position - attacker.transform.position;
+
+            if (dir.z < 0f)
+            {
+                attacker.ROTATION_DATA.FaceForward(false);
+            }
+            else if (dir.z > 0f)
+            {
+                attacker.ROTATION_DATA.FaceForward(true);
+            }
+
+            control.transform.LookAt(control.transform.position + (attacker.transform.forward * 5f), Vector3.up);
+            control.transform.position = attacker.transform.position + (attacker.transform.forward * 0.45f);
+
             hp = 0f;
         }
     }

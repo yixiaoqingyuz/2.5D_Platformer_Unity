@@ -16,24 +16,15 @@ namespace Roundbeargames
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //CharacterControl control = characterState.GetCharacterControl(animator);
-
             if (stateInfo.normalizedTime >= TriggerTiming)
             {
-                if (!characterState.characterControl.animationProgress.RagdollTriggered)
-                {
-                    if (characterState.characterControl.SkinnedMeshAnimator.enabled)
-                    {
-                        characterState.characterControl.animationProgress.RagdollTriggered = true;
-                    }
-                }
+                characterState.RAGDOLL_DATA.RagdollTriggered = true;
             }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //CharacterControl control = characterState.GetCharacterControl(animator);
-            //control.animationProgress.RagdollTriggered = false;
+
         }
     }
 }

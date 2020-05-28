@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,31 +17,29 @@ namespace Roundbeargames
 
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            characterState.characterControl.animationProgress.Jumped = false;
+            characterState.JUMP_DATA.Jumped = false;
 
             if (JumpTiming == 0f)
             {
                 characterState.characterControl.RIGID_BODY.AddForce(Vector3.up * JumpForce);
-                characterState.characterControl.animationProgress.Jumped = true;
+                characterState.JUMP_DATA.Jumped = true;
             }
 
-            characterState.characterControl.animationProgress.CancelPull = CancelPull;
+            characterState.VERTICAL_VELOCITY_DATA.NoJumpCancel = CancelPull;
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //characterState.characterControl.PullMultiplier = Pull.Evaluate(stateInfo.normalizedTime);
-
-            if (!characterState.characterControl.animationProgress.Jumped && stateInfo.normalizedTime >= JumpTiming)
+            if (!characterState.JUMP_DATA.Jumped && stateInfo.normalizedTime >= JumpTiming)
             {
                 characterState.characterControl.RIGID_BODY.AddForce(Vector3.up * JumpForce);
-                characterState.characterControl.animationProgress.Jumped = true;
+                characterState.JUMP_DATA.Jumped = true;
             }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //characterState.characterControl.PullMultiplier = 0f;
+
         }
     }
 }

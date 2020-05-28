@@ -11,19 +11,16 @@ namespace Roundbeargames
 
         public bool CameraShaken;
         public List<PoolObjectType> SpawnedObjList = new List<PoolObjectType>();
-        public bool RagdollTriggered;
+
         public MoveForward LatestMoveForward;
+        public MoveUp LatestMoveUp;
 
         [Header("Attack Button")]
         public bool AttackTriggered;
         public bool AttackButtonIsReset;
 
         [Header("GroundMovement")]
-        public bool disallowEarlyTurn;
-        public bool LockDirectionNextState;
         public bool IsIgnoreCharacterTime;
-        private List<GameObject> SpheresList;
-        private float DirBlock;
 
         [Header("Colliding Objects")]
         public GameObject Ground;
@@ -31,30 +28,9 @@ namespace Roundbeargames
             new Dictionary<TriggerDetector, List<Collider>>();
         public Dictionary<TriggerDetector, List<Collider>> CollidingBodyParts =
             new Dictionary<TriggerDetector, List<Collider>>();
-        public Dictionary<GameObject, GameObject> BlockingObjs =
-            new Dictionary<GameObject, GameObject>();
 
-        [Header("AirControl")]
-        public bool Jumped;
-        public float AirMomentum;
-        public bool CancelPull;
-        public Vector3 MaxFallVelocity;
-        public bool CanWallJump;
-        public bool CheckWallBlock;
-
-        [Header("UpdateBoxCollider")]
-        public bool UpdatingSpheres;
-        public Vector3 TargetSize;
-        public float Size_Speed;
-        public Vector3 TargetCenter;
-        public float Center_Speed;
-
-        [Header("Damage Info")]
-        public Attack Attack;
-        public CharacterControl Attacker;
-        public TriggerDetector DamagedTrigger;
-        public GameObject AttackingPart;
-
+        public Vector3 CollidingPoint = new Vector3();
+        
         [Header("Transition")]
         public bool LockTransition;
 
@@ -107,108 +83,22 @@ namespace Roundbeargames
             }
         }
 
-        private void FixedUpdate()
+        public void NullifyUpVelocity()
         {
-            if (IsRunning(typeof(MoveForward)))
-            {
-                CheckBlockingObjs();
-            }
-            else
-            {
-                if (BlockingObjs.Count != 0)
-                {
-                    BlockingObjs.Clear();
-                }
-            }
+            control.RIGID_BODY.velocity = new Vector3(
+                            control.RIGID_BODY.velocity.x,
+                            0f,
+                            control.RIGID_BODY.velocity.z);
         }
 
-        void CheckBlockingObjs()
+        public bool IsFacingAttacker()
         {
-            if (LatestMoveForward.Speed > 0)
+            Vector3 vec = control.DAMAGE_DATA.Attacker.transform.position -
+                control.transform.position;
+
+            if (vec.z < 0f)
             {
-                SpheresList = control.collisionSpheres.FrontSpheres;
-                DirBlock = 0.3f;
-
-                foreach(GameObject s in control.collisionSpheres.BackSpheres)
-                {
-                    if (BlockingObjs.ContainsKey(s))
-                    {
-                        BlockingObjs.Remove(s);
-                    }
-                }
-            }
-            else
-            {
-                SpheresList = control.collisionSpheres.BackSpheres;
-                DirBlock = -0.3f;
-
-                foreach (GameObject s in control.collisionSpheres.FrontSpheres)
-                {
-                    if (BlockingObjs.ContainsKey(s))
-                    {
-                        BlockingObjs.Remove(s);
-                    }
-                }
-            }
-
-            foreach (GameObject o in SpheresList)
-            {
-                Debug.DrawRay(o.transform.position, control.transform.forward * DirBlock, Color.yellow);
-                RaycastHit hit;
-                if (Physics.Raycast(o.transform.position, control.transform.forward * DirBlock,
-                    out hit,
-                    LatestMoveForward.BlockDistance))
-                {
-                    if (!IsBodyPart(hit.collider) &&
-                        !IsIgnoringCharacter(hit.collider) &&
-                        !Ledge.IsLedge(hit.collider.gameObject) &&
-                        !Ledge.IsLedgeChecker(hit.collider.gameObject) &&
-                        !MeleeWeapon.IsWeapon(hit.collider.gameObject) &&
-                        !TrapSpikes.IsTrap(hit.collider.gameObject))
-                    {
-                        if (BlockingObjs.ContainsKey(o))
-                        {
-                            BlockingObjs[o] = hit.collider.transform.root.gameObject;
-                        }
-                        else
-                        {
-                            BlockingObjs.Add(o, hit.collider.transform.root.gameObject);
-                        }
-                    }
-                    else
-                    {
-                        if (BlockingObjs.ContainsKey(o))
-                        {
-                            BlockingObjs.Remove(o);
-                        }
-                    }
-                }
-                else
-                {
-                    if (BlockingObjs.ContainsKey(o))
-                    {
-                        BlockingObjs.Remove(o);
-                    }
-                }
-            }
-        }
-
-        bool IsIgnoringCharacter(Collider col)
-        {
-            if (!IsIgnoreCharacterTime)
-            {
-                return false;
-            }
-            else
-            {
-                CharacterControl blockingChar = CharacterManager.Instance.GetCharacter(col.transform.root.gameObject);
-
-                if (blockingChar == null)
-                {
-                    return false;
-                }
-
-                if (blockingChar == control)
+                if (control.ROTATION_DATA.IsFacingForward())
                 {
                     return false;
                 }
@@ -217,30 +107,45 @@ namespace Roundbeargames
                     return true;
                 }
             }
+            else if (vec.z > 0f)
+            {
+                if (control.ROTATION_DATA.IsFacingForward())
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
-        bool IsBodyPart(Collider col)
+        public bool ForwardIsReversed()
         {
-            if (col.transform.root.gameObject == control.gameObject)
+            if (LatestMoveForward.MoveOnHit)
+            {
+                if (IsFacingAttacker())
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (LatestMoveForward.Speed > 0f)
+            {
+                return false;
+            }
+            else if (LatestMoveForward.Speed < 0f)
             {
                 return true;
             }
 
-            CharacterControl target = CharacterManager.Instance.GetCharacter(col.transform.root.gameObject);
-
-            if (target == null)
-            {
-                return false;
-            }
-
-            if (target.damageDetector.IsDead())
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return false;
         }
 
         public bool IsRunning(System.Type type)
@@ -256,24 +161,13 @@ namespace Roundbeargames
             return false;
         }
 
-        public bool RightSideIsBlocked()
+        public bool StateNameContains(string str)
         {
-            foreach(KeyValuePair<GameObject, GameObject> data in BlockingObjs)
-            {
-                if ((data.Value.transform.position - control.transform.position).z > 0f)
-                {
-                    return true;
-                }
-            }
+            AnimatorClipInfo[] arr = control.SkinnedMeshAnimator.GetCurrentAnimatorClipInfo(0);
 
-            return false;
-        }
-
-        public bool LeftSideIsBlocked()
-        {
-            foreach (KeyValuePair<GameObject, GameObject> data in BlockingObjs)
+            foreach(AnimatorClipInfo clipInfo in arr)
             {
-                if ((data.Value.transform.position - control.transform.position).z < 0f)
+                if (clipInfo.clip.name.Contains(str))
                 {
                     return true;
                 }

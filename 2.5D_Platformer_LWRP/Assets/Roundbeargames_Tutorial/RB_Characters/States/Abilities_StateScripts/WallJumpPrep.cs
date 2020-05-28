@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -11,17 +12,17 @@ namespace Roundbeargames
         {
             characterState.characterControl.MoveLeft = false;
             characterState.characterControl.MoveRight = false;
-            characterState.characterControl.animationProgress.AirMomentum = 0f;
+            characterState.MOMENTUM_DATA.Momentum = 0f;
 
             characterState.characterControl.RIGID_BODY.velocity = Vector3.zero;
 
-            if (characterState.characterControl.IsFacingForward())
+            if (characterState.ROTATION_DATA.IsFacingForward())
             {
-                characterState.characterControl.FaceForward(false);
+                characterState.ROTATION_DATA.FaceForward(false);
             }
             else
             {
-                characterState.characterControl.FaceForward(true);
+                characterState.ROTATION_DATA.FaceForward(true);
             }
         }
 

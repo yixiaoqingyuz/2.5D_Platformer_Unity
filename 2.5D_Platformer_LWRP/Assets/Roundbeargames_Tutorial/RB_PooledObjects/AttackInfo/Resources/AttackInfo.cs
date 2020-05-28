@@ -18,6 +18,7 @@ namespace Roundbeargames
         public bool isRegisterd;
         public bool isFinished;
         public bool UseRagdollDeath;
+        public List<CharacterControl> RegisteredTargets = new List<CharacterControl>();
 
         public void ResetInfo(Attack attack, CharacterControl attacker)
         {
@@ -25,12 +26,25 @@ namespace Roundbeargames
             isFinished = false;
             AttackAbility = attack;
             Attacker = attacker;
+            RegisteredTargets.Clear();
         }
 
         public void Register(Attack attack)
         {
             isRegisterd = true;
 
+            AttackAbility = attack;
+            AttackParts = attack.AttackParts;
+            MustCollide = attack.MustCollide;
+            MustFaceAttacker = attack.MustFaceAttacker;
+            LethalRange = attack.LethalRange;
+            MaxHits = attack.MaxHits;
+            CurrentHits = 0;
+        }
+
+        public void CopyInfo(Attack attack, CharacterControl attacker)
+        {
+            Attacker = attacker;
             AttackAbility = attack;
             AttackParts = attack.AttackParts;
             MustCollide = attack.MustCollide;

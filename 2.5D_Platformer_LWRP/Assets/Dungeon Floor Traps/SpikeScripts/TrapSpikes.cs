@@ -35,14 +35,14 @@ namespace Roundbeargames
             {
                 foreach(CharacterControl control in ListCharacters)
                 {
-                    if (!control.damageDetector.IsDead())
+                    if (!control.DAMAGE_DATA.IsDead())
                     {
                         if (SpikeTriggerRoutine == null && SpikesReloaded)
                         {
                             if (!ListSpikeVictims.Contains(control))
                             {
                                 ListSpikeVictims.Add(control);
-                                control.damageDetector.TakeTotalDamage();
+                                control.damageDetector.DeathBySpikes();
                             }
                         }
                     }
@@ -86,7 +86,7 @@ namespace Roundbeargames
 
             foreach (CharacterControl control in ListSpikeVictims)
             {
-                control.TurnOnRagdoll();
+                control.RAGDOLL_DATA.RagdollTriggered = true;
             }
 
             yield return new WaitForSeconds(1f);

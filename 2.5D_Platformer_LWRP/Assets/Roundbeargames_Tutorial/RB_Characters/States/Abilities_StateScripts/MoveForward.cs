@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -27,41 +28,44 @@ namespace Roundbeargames
         public float StartingMomentum;
         public float MaxMomentum;
         public bool ClearMomentumOnExit;
+
+        [Header("MoveOnHit")]
+        public bool MoveOnHit;
         
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
             characterState.characterControl.animationProgress.LatestMoveForward = this;
 
-            if (AllowEarlyTurn && !characterState.characterControl.animationProgress.disallowEarlyTurn)
+            if (AllowEarlyTurn)
             {
-                if (!characterState.characterControl.animationProgress.LockDirectionNextState)
+                // early turn can be locked by previous states
+                if (!characterState.ROTATION_DATA.EarlyTurnIsLocked())
                 {
                     if (characterState.characterControl.MoveLeft)
                     {
-                        characterState.characterControl.FaceForward(false);
+                        characterState.ROTATION_DATA.FaceForward(false);
                     }
                     if (characterState.characterControl.MoveRight)
                     {
-                        characterState.characterControl.FaceForward(true);
+                        characterState.ROTATION_DATA.FaceForward(true);
                     }
                 }
             }
 
             if (StartingMomentum > 0.001f)
             {
-                if (characterState.characterControl.IsFacingForward())
+                if (characterState.ROTATION_DATA.IsFacingForward())
                 {
-                    characterState.characterControl.animationProgress.AirMomentum = StartingMomentum;
+                    characterState.MOMENTUM_DATA.Momentum = StartingMomentum;
                 }
                 else
                 {
-                    characterState.characterControl.animationProgress.AirMomentum = -StartingMomentum;
+                    characterState.MOMENTUM_DATA.Momentum = -StartingMomentum;
                 }
             }
 
-            characterState.characterControl.animationProgress.disallowEarlyTurn = false;
-            characterState.characterControl.animationProgress.LockDirectionNextState = false;
-            //characterState.characterControl.animationProgress.BlockingObjs.Clear();
+            characterState.ROTATION_DATA.LockEarlyTurn = false;
+            characterState.ROTATION_DATA.LockDirectionNextState = false;
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
@@ -71,7 +75,7 @@ namespace Roundbeargames
                 Debug.Log(stateInfo.normalizedTime);
             }
 
-            characterState.characterControl.animationProgress.LockDirectionNextState = LockDirectionNextState;
+            characterState.ROTATION_DATA.LockDirectionNextState = LockDirectionNextState;
 
             if (characterState.characterControl.animationProgress.
                 LatestMoveForward != this)
@@ -106,7 +110,7 @@ namespace Roundbeargames
 
             if (UseMomentum)
             {
-                UpdateMomentum(characterState.characterControl, stateInfo);
+                MoveOnMomentum(characterState.characterControl, stateInfo);
             }
             else
             {
@@ -125,68 +129,49 @@ namespace Roundbeargames
         {
             if (ClearMomentumOnExit)
             {
-                characterState.characterControl.animationProgress.AirMomentum = 0f;
+                characterState.MOMENTUM_DATA.Momentum = 0f;
             }
         }
 
-        private void UpdateMomentum(CharacterControl control, AnimatorStateInfo stateInfo)
+        private void MoveOnMomentum(CharacterControl control, AnimatorStateInfo stateInfo)
         {
-            if (!control.animationProgress.RightSideIsBlocked())
+            float speed = SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
+            control.MOMENTUM_DATA.CalculateMomentum(speed, MaxMomentum);
+
+            if (control.MOMENTUM_DATA.Momentum > 0f)
             {
-                if (control.MoveRight)
-                {
-                    control.animationProgress.AirMomentum += SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
-                }
+                control.ROTATION_DATA.FaceForward(true);
             }
-            
-            if (!control.animationProgress.LeftSideIsBlocked())
+            else if (control.MOMENTUM_DATA.Momentum < 0f)
             {
-                if (control.MoveLeft)
-                {
-                    control.animationProgress.AirMomentum -= SpeedGraph.Evaluate(stateInfo.normalizedTime) * Speed * Time.deltaTime;
-                }
+                control.ROTATION_DATA.FaceForward(false);
             }
 
-            if (control.animationProgress.RightSideIsBlocked() ||
-                control.animationProgress.LeftSideIsBlocked())
+            if (!IsBlocked(control))
             {
-                control.animationProgress.AirMomentum =
-                    Mathf.Lerp(control.animationProgress.AirMomentum, 0f, Time.deltaTime * 1.5f);  
-            }
-            
-
-            if (Mathf.Abs(control.animationProgress.AirMomentum) >= MaxMomentum)
-            {
-                if (control.animationProgress.AirMomentum > 0f)
-                {
-                    control.animationProgress.AirMomentum = MaxMomentum;
-                }
-                else if (control.animationProgress.AirMomentum < 0f)
-                {
-                    control.animationProgress.AirMomentum = -MaxMomentum;
-                }
-            }
-
-            if (control.animationProgress.AirMomentum > 0f)
-            {
-                control.FaceForward(true);
-            }
-            else if (control.animationProgress.AirMomentum < 0f)
-            {
-                control.FaceForward(false);
-            }
-
-            if (!IsBlocked(control, Speed, stateInfo))
-            {
-                control.MoveForward(Speed, Mathf.Abs(control.animationProgress.AirMomentum));
+                control.MoveForward(Speed, Mathf.Abs(control.MOMENTUM_DATA.Momentum));
             }
         }
 
         private void ConstantMove(CharacterControl control, Animator animator, AnimatorStateInfo stateInfo)
         {
-            if (!IsBlocked(control, Speed, stateInfo))
+            if (!IsBlocked(control))
             {
-                control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
+                if (MoveOnHit)
+                {
+                    if (!control.animationProgress.IsFacingAttacker())
+                    {
+                        control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
+                    }
+                    else
+                    {
+                        control.MoveForward(-Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
+                    }
+                }
+                else
+                {
+                    control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
+                }
             }
 
             if (!control.MoveRight && !control.MoveLeft)
@@ -215,7 +200,7 @@ namespace Roundbeargames
 
             if (control.MoveRight)
             {
-                if (!IsBlocked(control, Speed, stateInfo))
+                if (!IsBlocked(control))
                 {
                     control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
                 }
@@ -223,7 +208,7 @@ namespace Roundbeargames
 
             if (control.MoveLeft)
             {
-                if (!IsBlocked(control, Speed, stateInfo))
+                if (!IsBlocked(control))
                 {
                     control.MoveForward(Speed, SpeedGraph.Evaluate(stateInfo.normalizedTime));
                 }
@@ -266,9 +251,9 @@ namespace Roundbeargames
             }
         }
            
-        bool IsBlocked(CharacterControl control, float speed, AnimatorStateInfo stateInfo)
+        bool IsBlocked(CharacterControl control)
         {
-            if (control.animationProgress.BlockingObjs.Count != 0)
+            if (control.BLOCKING_DATA.FrontBlockingDicCount != 0)
             {
                 return true;
             }

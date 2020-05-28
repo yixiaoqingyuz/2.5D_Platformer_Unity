@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,17 +14,19 @@ namespace Roundbeargames
             animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Attack], false);
             animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Move], false);
 
-            characterState.characterControl.animationProgress.disallowEarlyTurn = false;
-            characterState.characterControl.animationProgress.BlockingObjs.Clear();
+            characterState.ROTATION_DATA.LockEarlyTurn = false;
+            characterState.ROTATION_DATA.LockDirectionNextState = false;
+            characterState.BLOCKING_DATA.ClearFrontBlockingObjDic();
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            characterState.characterControl.animationProgress.LockDirectionNextState = false;
+            characterState.ROTATION_DATA.LockEarlyTurn = false;
+            characterState.ROTATION_DATA.LockDirectionNextState = false;
 
             if (characterState.characterControl.Jump)
             {
-                if (!characterState.characterControl.animationProgress.Jumped)
+                if (!characterState.JUMP_DATA.Jumped)
                 {
                     if (characterState.characterControl.animationProgress.Ground != null)
                     {
@@ -36,7 +39,7 @@ namespace Roundbeargames
                 if (!characterState.characterControl.animationProgress.
                     IsRunning(typeof(Jump)))
                 {
-                    characterState.characterControl.animationProgress.Jumped = false;
+                    characterState.JUMP_DATA.Jumped = false;
                 }
             }
 

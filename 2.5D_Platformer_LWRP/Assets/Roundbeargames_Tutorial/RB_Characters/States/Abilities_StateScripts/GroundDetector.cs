@@ -7,9 +7,21 @@ namespace Roundbeargames
     [CreateAssetMenu(fileName = "New State", menuName = "Roundbeargames/AbilityData/GroundDetector")]
     public class GroundDetector : StateData
     {
-        [Range(0.01f, 1f)]
-        public float CheckTime;
         public float Distance;
+
+        private GameObject testingSphere;
+
+        public GameObject TESTING_SPHERE
+        {
+            get
+            {
+                if (testingSphere == null)
+                {
+                    testingSphere = GameObject.Find("TestingSphere");
+                }
+                return testingSphere;
+            }
+        }
 
         public override void OnEnter(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
@@ -18,18 +30,13 @@ namespace Roundbeargames
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            //CharacterControl control = characterState.GetCharacterControl(animator);
-
-            if (stateInfo.normalizedTime >= CheckTime)
+            if (IsGrounded(characterState.characterControl))
             {
-                if (IsGrounded(characterState.characterControl))
-                {
-                    animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded], true);
-                }
-                else
-                {
-                    animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded], false);
-                }
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded], true);
+            }
+            else
+            {
+                animator.SetBool(HashManager.Instance.DicMainParams[TransitionParameter.Grounded], false);
             }
         }
 
@@ -53,6 +60,11 @@ namespace Roundbeargames
                         if (Mathf.Abs(control.RIGID_BODY.velocity.y) < 0.001f)
                         {
                             control.animationProgress.Ground = c.otherCollider.transform.root.gameObject;
+                            control.BOX_COLLIDER_DATA.LandingPosition = new Vector3(
+                                0f,
+                                c.point.y,
+                                c.point.z);
+
                             return true;
                         }
                     }
@@ -63,16 +75,20 @@ namespace Roundbeargames
             {
                 foreach (GameObject o in control.collisionSpheres.BottomSpheres)
                 {
-                    Debug.DrawRay(o.transform.position, -Vector3.up * 0.7f, Color.yellow);
-                    RaycastHit hit;
-                    if (Physics.Raycast(o.transform.position, -Vector3.up, out hit, Distance))
+                    GameObject blockingObj = CollisionDetection.GetCollidingObject(control, o, -Vector3.up, Distance,
+                        ref control.animationProgress.CollidingPoint);
+
+                    if (blockingObj != null)
                     {
-                        if (!control.RagdollParts.Contains(hit.collider) 
-                            && !Ledge.IsLedge(hit.collider.gameObject)
-                            && !Ledge.IsLedgeChecker(hit.collider.gameObject)
-                            && !Ledge.IsCharacter(hit.collider.gameObject))
+                        CharacterControl c = CharacterManager.Instance.GetCharacter(blockingObj.transform.root.gameObject);
+
+                        if (c == null)
                         {
-                            control.animationProgress.Ground = hit.collider.transform.root.gameObject;
+                            control.animationProgress.Ground = blockingObj.transform.root.gameObject;
+                            control.BOX_COLLIDER_DATA.LandingPosition = new Vector3(
+                                0f,
+                                control.animationProgress.CollidingPoint.y,
+                                control.animationProgress.CollidingPoint.z);
                             return true;
                         }
                     }

@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Roundbeargames.Datasets;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,23 +14,24 @@ namespace Roundbeargames
         {
             characterState.characterControl.MoveLeft = false;
             characterState.characterControl.MoveRight = false;
-            characterState.characterControl.animationProgress.AirMomentum = 0f;
 
-            characterState.characterControl.animationProgress.MaxFallVelocity = MaxFallVelocity;
-            characterState.characterControl.animationProgress.CanWallJump = false;
+            characterState.MOMENTUM_DATA.Momentum = 0f;
+            characterState.characterControl.AIR_CONTROL.SetBool((int)AirControlBool.CAN_WALL_JUMP, false);
+
+            characterState.VERTICAL_VELOCITY_DATA.MaxWallSlideVelocity = MaxFallVelocity;
         }
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
             if (!characterState.characterControl.Jump)
             {
-                characterState.characterControl.animationProgress.CanWallJump = true;
+                characterState.characterControl.AIR_CONTROL.SetBool((int)AirControlBool.CAN_WALL_JUMP, true);
             }
         }
 
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
-            characterState.characterControl.animationProgress.MaxFallVelocity = Vector3.zero;
+            characterState.VERTICAL_VELOCITY_DATA.MaxWallSlideVelocity = Vector3.zero;
         }
     }
 }

@@ -107,6 +107,14 @@ namespace Roundbeargames
                         info.isFinished = true;
                         info.GetComponent<PoolObject>().TurnOff();
 
+                        foreach(CharacterControl c in CharacterManager.Instance.Characters)
+                        {
+                            if (c.DAMAGE_DATA.BlockedAttack == info)
+                            {
+                                c.DAMAGE_DATA.BlockedAttack = null;
+                            }
+                        }
+
                         if (debug)
                         {
                             Debug.Log(this.name + " de-registered: " + stateInfo.normalizedTime);

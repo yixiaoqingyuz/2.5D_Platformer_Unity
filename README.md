@@ -2,7 +2,7 @@
 
 **Installing:**
 
-**(Make sure you're using Unity 2019.2)**
+**(Make sure you're using Unity 2019.3)**
 
 1. "Download ZIP" and open project in Unity
 2. Open "TutorialScene" (Under "LatestScene")
@@ -28,7 +28,7 @@ https://youtube.com/roundbeargames
 
 **Social**
 
-discord: https://discord.gg/RbxjBu3
+discord: https://discord.gg/hAFTgcA
 
 twitter: https://twitter.com/roundbeargames
 
@@ -42,10 +42,12 @@ linkedin: https://linkedin.com/in/roundbeargames-choi-15041a9a
 
 **Blog**
 
-https://steemit.com/@roundbeargames
+https://peakd.com/@roundbeargames/posts
 
 ----
 
 **Support Roundbeargames**
 
 https://patreon.com/roundbeargames
+
+https://youtube.com/roundbeargames/join

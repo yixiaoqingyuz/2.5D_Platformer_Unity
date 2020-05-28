@@ -15,6 +15,11 @@ namespace Roundbeargames
 
         public override void UpdateAbility(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
+            if (!AIIsOnGround(characterState.characterControl))
+            {
+                return;
+            }
+
             // walking
             if (characterState.characterControl.aiProgress.AIDistanceToEndSphere() < 1f)
             {
@@ -37,16 +42,17 @@ namespace Roundbeargames
             }
 
             // path is blocked
-            if (characterState.characterControl.animationProgress.BlockingObjs.Count == 0)
+            if (characterState.BLOCKING_DATA.FrontBlockingDicCount == 0)
             {
                 characterState.characterControl.aiProgress.BlockingCharacter = null;
             }
             else
             {
-                foreach (KeyValuePair<GameObject, GameObject> data in
-                characterState.characterControl.animationProgress.BlockingObjs)
+                List<GameObject> objs = characterState.BLOCKING_DATA.GetFrontBlockingCharacterList();
+
+                foreach(GameObject o in objs)
                 {
-                    CharacterControl blockingChar = CharacterManager.Instance.GetCharacter(data.Value);
+                    CharacterControl blockingChar = CharacterManager.Instance.GetCharacter(o);
 
                     if (blockingChar != null)
                     {
@@ -99,6 +105,25 @@ namespace Roundbeargames
         public override void OnExit(CharacterState characterState, Animator animator, AnimatorStateInfo stateInfo)
         {
 
+        }
+
+        bool AIIsOnGround(CharacterControl control)
+        {
+            if (control.animationProgress.IsRunning(typeof(MoveUp)))
+            {
+                return false;
+            }
+
+            if (control.RIGID_BODY.useGravity)
+            {
+                if (control.SkinnedMeshAnimator.GetBool(
+                    HashManager.Instance.DicMainParams[TransitionParameter.Grounded]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
